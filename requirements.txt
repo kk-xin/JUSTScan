@@ -1,0 +1,5 @@
+flask
+flask-cors
+tencentcloud-sdk-python
+pillow
+python-dotenv

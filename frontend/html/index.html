@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JUSTScan - 图片单词卡识别</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-image"></i>
+                <h1>JUSTScan</h1>
+            </div>
+            <nav class="nav">
+                <a href="#home" class="nav-link active">首页</a>
+                <a href="#features" class="nav-link">功能</a>
+                <a href="#about" class="nav-link">关于</a>
+                <a href="cards.html" class="nav-link">管理单词卡</a>
+            </nav>
+        </header>
+
+        <main class="main">
+            <section class="hero" id="home">
+                <div class="hero-content">
+                    <h2 class="hero-title">智能图片单词卡识别</h2>
+                    <p class="hero-subtitle">上传图片，自动识别图片上的单词，生成专属单词卡</p>
+                    <div class="hero-buttons">
+                        <button class="btn btn-primary" id="startUploadBtn">
+                            <i class="fas fa-upload"></i>
+                            上传图片
+                        </button>
+                        <button class="btn btn-secondary" id="exportBtn">
+                            <i class="fas fa-file-export"></i>
+                            导出单词卡
+                        </button>
+                    </div>
+                </div>
+                <div class="hero-visual">
+                    <div class="audio-wave">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="upload-section">
+                <div class="upload-container">
+                    <h3>上传图片文件</h3>
+                    <div class="upload-area" id="uploadArea">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>拖拽图片到这里，或点击选择文件</p>
+                        <input type="file" id="fileInput" accept="image/*" multiple>
+                    </div>
+                    <div class="file-list" id="fileList"></div>
+                </div>
+            </section>
+
+            <section class="cards-section">
+                <div class="cards-container">
+                    <h3>单词卡</h3>
+                    <div class="cards-list" id="cardsList">
+                        <!-- 单词卡动态生成 -->
+                    </div>
+                </div>
+            </section>
+            <section class="prompt-helper-section">
+                <div class="prompt-helper" style="margin:2em 0;">
+                    <textarea id="promptTextarea" rows="10" style="width:100%;font-size:1em;"></textarea>
+                    <div style="margin-top:0.5em;display:flex;gap:1em;">
+                        <button onclick="generatePrompt()" class="btn-process">生成Gemini提示词</button>
+                        <button onclick="copyPrompt()" class="btn-process">复制到剪贴板</button>
+                        <button onclick="askGemini()" class="btn-process">与Gemini交流并生成CSV</button>
+                        <button onclick="useOcrWordsForGemini()" class="btn-process">用识别结果生成单词卡</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2024 JUSTScan. 保留所有权利。</p>
+        </footer>
+    </div>
+
+    <script src="../script.js"></script>
+</body>
+</html> 

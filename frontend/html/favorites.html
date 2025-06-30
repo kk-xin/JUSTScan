@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>收藏夹 - JUSTScan</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-image"></i>
+                <h1>JUSTScan</h1>
+            </div>
+            <nav class="nav">
+                <a href="index.html" class="nav-link">返回首页</a>
+                <a href="cards.html" class="nav-link">单词卡</a>
+                <a href="#" class="nav-link active">收藏夹</a>
+            </nav>
+        </header>
+        <main class="main">
+            <section class="cards-section">
+                <div class="cards-container">
+                    <div class="cards-header">
+                        <h3>我的收藏</h3>
+                        <div class="cards-actions">
+                            <button id="speechControlBtn" class="btn-speech-control" title="语音控制">
+                                <i class="fas fa-microphone"></i>
+                            </button>
+                            <button id="backBtn" class="btn-back-icon" title="返回">
+                                <i class="fas fa-arrow-left"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 排序功能 -->
+                    <div class="sort-section">
+                        <div class="sort-controls">
+                            <label for="sortSelect">排序方式：</label>
+                            <select id="sortSelect" class="sort-select">
+                                <option value="default">默认顺序</option>
+                                <option value="word_asc">单词 A-Z</option>
+                                <option value="word_desc">单词 Z-A</option>
+                                <option value="favorite_time_desc">收藏时间 最新</option>
+                                <option value="favorite_time_asc">收藏时间 最早</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="cards-list" id="favoritesList">
+                        <!-- 收藏的单词卡动态生成 -->
+                    </div>
+                </div>
+            </section>
+        </main>
+        <footer class="footer">
+            <p>&copy; 2024 JUSTScan. 保留所有权利。</p>
+        </footer>
+    </div>
+    <script src="../favorites.js"></script>
+</body>
+</html> 
