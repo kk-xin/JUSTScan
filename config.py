@@ -16,3 +16,5 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # Google Gemini API配置
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+    SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{os.environ.get('DB_USER')}:{os.environ.get('DB_PASSWORD')}@localhost:3306/{os.environ.get('DB_NAME')}"
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
