@@ -353,6 +353,7 @@ run|||vi. 跑步，奔跑；vt. 经营，管理|||He runs a successful business 
             if not line.strip():
                 continue
             parts = line.split('|||')
+            print(parts, flush=True)
             if len(parts) == 4:
              
                 word = parts[0].strip()
@@ -379,6 +380,26 @@ run|||vi. 跑步，奔跑；vt. 经营，管理|||He runs a successful business 
         return jsonify({'success': True, 'saved_cards': saved_cards})
     except Exception as e:
         return jsonify({'success': False, 'error': f'生成单词卡失败: {str(e)}'}), 500
+
+@app.route('/get_words')
+def get_words():
+    try:
+        cards = WordCard.query.filter_by(is_deleted=False).all()
+        data = [
+            {
+                'word': c.word,
+                'meaning': c.word_meaning,
+                'example': c.example,
+                'example_meaning': c.example_meaning,
+                'is_favorite': c.is_favorite,
+                'modify_time': c.modify_time.strftime('%Y-%m-%d %H:%M:%S') if c.modify_time else '',
+                'wordbook_id': c.wordbook_id
+            }
+            for c in cards
+        ]
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     print("启动JUSTScan后端服务...")

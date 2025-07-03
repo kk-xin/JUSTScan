@@ -15,7 +15,10 @@ let speechSettings = {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadAllData();
+    loadFavorites();
+    document.getElementById('backBtn').addEventListener('click', () => {
+        window.location.href = 'cards';
+    });
     initializeEventListeners();
     initializeSpeech();
 });
@@ -23,7 +26,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeEventListeners() {
     // 返回按钮
     document.getElementById('backBtn').addEventListener('click', () => {
-        window.location.href = 'cards.html';
+        window.location.href = 'cards';
     });
     
     // 排序选择
@@ -80,62 +83,43 @@ async function loadAllWordCards() {
 // 加载收藏列表
 async function loadFavorites() {
     try {
-        const response = await fetch(`${API_BASE_URL}/get_favorites`);
-        if (!response.ok) throw new Error('获取收藏失败');
-        
-        const data = await response.json();
-        allFavorites = data.favorites || [];
+        const resp = await fetch('http://localhost:5050/get_words');
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || '获取收藏失败');
+        const favorites = (data.data || []).filter(card => card.is_favorite);
+        renderFavorites(favorites);
     } catch (e) {
-        console.error('加载收藏失败:', e);
-        allFavorites = [];
+        document.getElementById('favoritesList').innerHTML = '<div style="color:#f87171;">加载收藏失败: ' + e.message + '</div>';
     }
 }
 
 // 渲染收藏的单词卡
-function renderFavorites() {
+function renderFavorites(cards) {
     const list = document.getElementById('favoritesList');
     list.innerHTML = '';
-    
-    if (allFavorites.length === 0) {
-        list.innerHTML = '<div style="text-align:center;color:#fff;opacity:0.7;padding:2em;">暂无收藏的单词卡</div>';
+    if (!cards.length) {
+        list.innerHTML = '<div style="color:#fff;opacity:0.7;text-align:center;margin-top:3em;">暂无收藏</div>';
         return;
     }
-    
-    // 获取排序方式
-    const sortType = document.getElementById('sortSelect').value;
-    const sortedFavorites = sortFavorites(allFavorites, sortType);
-    
-    sortedFavorites.forEach((favorite, idx) => {
-        // 从allCards中找到对应的完整信息
-        const cardInfo = allCards.find(card => card.word === favorite.word) || {
-            word: favorite.word,
-            meaning: '未找到释义',
-            example: '未找到例句'
-        };
-        
-        const card = document.createElement('div');
-        card.className = 'word-card';
-        card.innerHTML = `
-            <div class="card-favorite-btn" onclick="toggleFavorite('${favorite.word}')" title="取消收藏">
+    // 网格排列：每行最多 3 个
+    list.style.display = 'flex';
+    list.style.flexWrap = 'wrap';
+    list.style.gap = '2em';
+    list.style.justifyContent = 'flex-start';
+    cards.forEach(item => {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'word-card';
+        cardDiv.style = 'flex:0 0 calc((100% - 4em) / 3); max-width:420px; position:relative;';
+        cardDiv.innerHTML = `
+            <div class="card-favorite-btn" style="position:absolute;top:1em;right:1em;">
                 <i class="fas fa-star favorite-active"></i>
             </div>
-            <div style="font-size:1.2em;font-weight:600;color:#fff;margin-bottom:0.5em;display:flex;align-items:center;gap:0.5rem;">
-                <span class="word-text">${cardInfo.word}</span>
-                <button class="btn-speak-word" onclick="speakWord('${cardInfo.word}')" title="朗读单词">
-                    <i class="fas fa-volume-up"></i>
-                </button>
-            </div>
-            <div style="font-size:1em;color:#ffd700;margin-bottom:0.5em;">
-                <span class="meaning-text">${cardInfo.meaning || ''}</span>
-            </div>
-            <div style="font-size:0.9em;color:#fff;opacity:0.8;margin-bottom:0.5em;display:flex;align-items:flex-start;gap:0.5rem;">
-                <span class="example-text" style="flex:1;">${cardInfo.example || ''}</span>
-                ${cardInfo.example ? `<button class="btn-speak-sentence" onclick="speakSentence('${cardInfo.example.replace(/'/g, "\\'")}')" title="朗读例句">
-                    <i class="fas fa-volume-up"></i>
-                </button>` : ''}
-            </div>
+            <div style="font-size:1.5em;font-weight:600;margin-bottom:0.5em;color:#fff;">${item.word}</div>
+            <div style="font-size:1.1em;color:#ffd700;margin-bottom:0.5em;">${item.meaning || ''}</div>
+            <div style="font-size:1em;color:#fff;opacity:0.9;word-break:break-word;margin-bottom:0.5em;">${item.example || ''}</div>
+            <div style="font-size:1em;color:#ffd700;opacity:0.95;margin-bottom:0.5em;">${item.example_meaning || ''}</div>
         `;
-        list.appendChild(card);
+        list.appendChild(cardDiv);
     });
 }
 

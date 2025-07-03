@@ -29,7 +29,7 @@ function initializeEventListeners() {
     document.getElementById('trashBtn').addEventListener('click', showTrashModal);
     // 收藏夹按钮点击
     document.getElementById('favoritesBtn').addEventListener('click', () => {
-        window.location.href = 'favorites.html';
+        window.location.href = 'favorites';
     });
     // 排序选择
     document.getElementById('sortSelect').addEventListener('change', handleSort);
@@ -85,18 +85,16 @@ function sortCards(cards, sortType) {
 // 加载所有单词卡
 async function loadAllWordCards() {
     try {
-        const resp = await fetch('http://localhost:5050/get_words');
+        const resp = await fetch(`${API_BASE_URL}/get_words`);
         if (!resp.ok) throw new Error('无法获取单词卡');
         const data = await resp.json();
         if (!data.success) throw new Error(data.error || '获取单词失败');
         allCards = data.data || [];
-        renderAllWordCards(allCards);
-        // 更新回收站数量
+        renderWordListAndDetail(allCards);
         updateTrashCount();
-        // 更新收藏数量
         updateFavoritesCount();
     } catch (e) {
-        document.getElementById('manageCardsList').innerHTML = '<div style="color:#f87171;">加载单词卡失败: ' + e.message + '</div>';
+        document.getElementById('wordList').innerHTML = '<div style="color:#f87171;">加载单词卡失败: ' + e.message + '</div>';
     }
 }
 
@@ -117,10 +115,11 @@ async function updateTrashCount() {
 // 更新收藏数量
 async function updateFavoritesCount() {
     try {
-        const response = await fetch(`${API_BASE_URL}/get_favorites`);
+        const response = await fetch(`${API_BASE_URL}/get_words`);
         if (response.ok) {
             const data = await response.json();
-            const count = data.favorites ? data.favorites.length : 0;
+            // 统计所有 is_favorite 为 true 的单词卡数量
+            const count = (data.data || []).filter(card => card.is_favorite).length;
             document.getElementById('favoritesCount').textContent = count;
         }
     } catch (e) {
@@ -258,51 +257,6 @@ async function permanentDeleteCard(word) {
 }
 
 // 渲染所有单词卡
-function renderAllWordCards(cards) {
-    allCards = cards;
-    // 按日期分组
-    const grouped = {};
-    cards.forEach(card => {
-        const date = card.upload_date || '未知日期';
-        if (!grouped[date]) grouped[date] = [];
-        grouped[date].push(card);
-    });
-    const manageCardsList = document.getElementById('manageCardsList');
-    manageCardsList.innerHTML = '';
-    const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a)); // 新日期在前
-    if (dates.length === 0) {
-        manageCardsList.innerHTML = '<div style="color:#fff;opacity:0.7;text-align:center;margin-top:3em;">暂无单词</div>';
-        return;
-    }
-    dates.forEach(date => {
-        const section = document.createElement('div');
-        section.className = 'wordbook-section';
-        section.innerHTML = `<div class="wordbook-title" style="font-size:1.2em;color:#ffd700;margin:1.5em 0 0.5em 0;">${date} 单词本</div>`;
-        const ul = document.createElement('ul');
-        ul.className = 'cards-list-panel';
-        grouped[date].forEach((item, idx) => {
-            const li = document.createElement('li');
-            li.textContent = item.word;
-            li.onclick = () => {
-                document.querySelectorAll('.cards-list-panel li').forEach(e => e.classList.remove('selected'));
-                li.classList.add('selected');
-                currentDetailIndex = idx;
-                renderCardDetail(item);
-            };
-            if (idx === 0) li.classList.add('selected');
-            ul.appendChild(li);
-        });
-        section.appendChild(ul);
-        manageCardsList.appendChild(section);
-    });
-    // 默认显示第一个单词本的第一个单词详情
-    if (dates.length > 0 && grouped[dates[0]].length > 0) {
-        currentDetailIndex = 0;
-        renderCardDetail(grouped[dates[0]][0]);
-    }
-}
-
-// 新增：渲染单词列表和详情
 function renderWordListAndDetail(cards) {
     const listPanel = document.getElementById('wordList');
     const detailPanel = document.getElementById('cardDetailContainer');
@@ -315,7 +269,7 @@ function renderWordListAndDetail(cards) {
         const li = document.createElement('li');
         li.textContent = item.word;
         li.onclick = () => {
-            document.querySelectorAll('.cards-list-panel li').forEach(e => e.classList.remove('selected'));
+            document.querySelectorAll('#wordList li').forEach(e => e.classList.remove('selected'));
             li.classList.add('selected');
             currentDetailIndex = idx;
             renderCardDetail(cards[idx]);
@@ -327,17 +281,13 @@ function renderWordListAndDetail(cards) {
     renderCardDetail(cards[0]);
 }
 
-// 新增：左右切换按钮
+// 新增：渲染单词列表和详情
 function renderCardDetail(item) {
     const detailPanel = document.getElementById('cardDetailContainer');
-    const total = allCards.length;
-    const idx = allCards.findIndex(c => c.word === item.word);
     detailPanel.innerHTML = `
-        <div class="word-card" style="margin:0 auto;position:relative;min-width:320px;">
-            <button class="btn-switch-left" onclick="switchCard(-1)" style="position:absolute;left:-48px;top:50%;transform:translateY(-50%);z-index:2;display:${idx>0?'block':'none'};background:rgba(59,130,246,0.7);border:none;border-radius:50%;width:36px;height:36px;color:#fff;font-size:1.2em;cursor:pointer;"><i class='fas fa-chevron-left'></i></button>
-            <button class="btn-switch-right" onclick="switchCard(1)" style="position:absolute;right:-48px;top:50%;transform:translateY(-50%);z-index:2;display:${idx<total-1?'block':'none'};background:rgba(59,130,246,0.7);border:none;border-radius:50%;width:36px;height:36px;color:#fff;font-size:1.2em;cursor:pointer;"><i class='fas fa-chevron-right'></i></button>
+        <div class="word-card" style="margin:0 auto;position:relative;min-width:420px;max-width:600px;">
             <div class="card-favorite-btn" onclick="toggleFavorite('${item.word}')" title="收藏">
-                <i class="fas fa-star favorite-inactive"></i>
+                <i class="fas fa-star ${item.is_favorite ? 'favorite-active' : 'favorite-inactive'}"></i>
             </div>
             <div style="font-size:1.5em;font-weight:600;margin-bottom:0.5em;display:flex;align-items:center;gap:0.5rem;">
                 <span class="word-text" style="color:#fff;">${item.word}</span>
@@ -354,6 +304,9 @@ function renderCardDetail(item) {
                     <i class="fas fa-volume-up"></i>
                 </button>` : ''}
             </div>
+            <div style="font-size:1em;color:#ffd700;opacity:0.95;margin-bottom:0.5em;">
+                <span class="example-meaning-text">${item.example_meaning || ''}</span>
+            </div>
             <div class="card-actions" style="margin-top:1em;display:flex;gap:0.5em;">
                 <button class="btn-edit" onclick="editCard('${item.word}')" title="编辑">
                     <i class="fas fa-pen"></i>
@@ -365,22 +318,6 @@ function renderCardDetail(item) {
         </div>
     `;
 }
-
-// 新增：切换单词卡
-function switchCard(direction) {
-    if (!allCards.length) return;
-    let idx = currentDetailIndex + direction;
-    if (idx < 0) idx = 0;
-    if (idx >= allCards.length) idx = allCards.length - 1;
-    currentDetailIndex = idx;
-    // 更新左侧高亮
-    document.querySelectorAll('.cards-list-panel li').forEach((li, i) => {
-        li.classList.toggle('selected', i === idx);
-    });
-    renderCardDetail(allCards[idx]);
-}
-
-// 保证全局变量 currentDetailIndex 在所有切换和点击时同步
 
 // 更新收藏状态
 async function updateFavoriteStatus() {
@@ -410,25 +347,31 @@ async function updateFavoriteStatus() {
 
 // 切换收藏状态
 async function toggleFavorite(word) {
+    const card = allCards.find(c => c.word === word);
+    if (!card) return;
+    const oldStatus = card.is_favorite;
+    card.is_favorite = !oldStatus;
+    renderCardDetail(card);
     try {
         const response = await fetch(`${API_BASE_URL}/toggle_favorite`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ word })
+            body: JSON.stringify({ word, wordbook_id: card.wordbook_id })
         });
-        
         if (!response.ok) throw new Error('操作失败');
-        
         const data = await response.json();
-        if (data.success) {
-            showNotification(data.message, 'success');
-            // 更新收藏状态和数量
-            updateFavoriteStatus();
-            updateFavoritesCount();
+        if (!data.success) {
+            card.is_favorite = oldStatus;
+            renderCardDetail(card);
+            showNotification(data.error || '操作失败', 'error');
         } else {
-            throw new Error(data.error || '操作失败');
+            card.is_favorite = data.is_favorite;
+            renderCardDetail(card);
+            updateFavoritesCount();
         }
     } catch (error) {
+        card.is_favorite = oldStatus;
+        renderCardDetail(card);
         showNotification('操作失败: ' + error.message, 'error');
     }
 }
