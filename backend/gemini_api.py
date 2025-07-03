@@ -38,7 +38,7 @@ app.add_middleware(
 )
 
 class ChatRequest(BaseModel):
-    text: str
+    prompt: str
 
 class WordItem(BaseModel):
     word: str
@@ -57,17 +57,13 @@ async def chat_endpoint(chat: ChatRequest):
     if not model:
         return {"error": "Gemini模型未正确初始化，请检查API密钥配置"}
     
+    
     try:
-        user_text = chat.text
-        prompt = (
-            "请严格按照如下格式输出：单词,中文释义（释义前用词性缩写标注，如 n. vt. vi. adj. adv. prep. 等）,英文例句（例句要高级且较长，词汇丰富，句子长度不少于15个单词）。比如：\n"
-            "apple,n. 苹果（水果）,She ate an apple every morning to maintain a healthy lifestyle and boost her immune system.\n"
-            "run,vi. 跑步，奔跑; vt. 经营，管理,He runs a successful business while also running every morning to stay fit.\n"
-            "请为以下单词生成内容：\n" + user_text
-        )
+        prompt = chat.prompt
         response = model.generate_content(prompt)
         return {"reply": response.text}
     except Exception as e:
+        print("Gemini调用异常：", e, flush=True)
         return {"error": f"调用Gemini API失败: {str(e)}"}
 
 @app.get("/health")

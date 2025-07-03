@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
+from flask import session
 import csv
 import os
 import base64
@@ -29,8 +30,8 @@ cred = credential.Credential(SECRET_ID, SECRET_KEY)
 client = ocr_client.OcrClient(cred, REGION)
 
 #初始化 Flask 和 SQLAlchemy 的绑定
-#static_folder='frontend' 告诉 Flask：“我的所有静态资源都在 frontend 这个文件夹里。”
-#static_url_path='/static' 告诉 Flask：“只要浏览器访问 /static/xxx，帮我去 frontend/xxx 找文件。”
+#static_folder='frontend' 告诉 Flask："我的所有静态资源都在 frontend 这个文件夹里。"
+#static_url_path='/static' 告诉 Flask："只要浏览器访问 /static/xxx，帮我去 frontend/xxx 找文件。"
 #这样可以让前端引用路径统一（/static/xxx），不管你后端怎么存放文件，前端都不用改。
 app = Flask(__name__, static_folder='frontend', static_url_path='/static')
 app.config.from_object(Config)
@@ -85,67 +86,10 @@ def upload():
         
         
         unique_words = sorted(list(set(all_words)))
+        
+        
         print(f"所有去重后单词: {unique_words}")
-        
-        # # 调用Gemini API生成词义和例句
-        # word_cards = []
-        # for word in unique_words:
-        #     try:
-        #         # 调用Gemini API
-        #         import requests
-        #         gemini_response = requests.post('http://localhost:8000/chat', 
-        #                                      json={'text': word}, 
-        #                                      timeout=30)
-                
-        #         if gemini_response.status_code == 200:
-        #             result = gemini_response.json()
-        #             if 'reply' in result:
-        #                 # 解析Gemini返回的内容
-        #                 lines = result['reply'].strip().split('\n')
-        #                 for line in lines:
-        #                     if ',' in line and word.lower() in line.lower():
-        #                         parts = line.split(',', 2)  # 最多分割2次
-        #                         if len(parts) >= 3:
-        #                             detected_word = parts[0].strip()
-        #                             meaning = parts[1].strip()
-        #                             example = parts[2].strip()
-                                    
-        #                             # 保存到数据库
-        #                             wordbook = WordBook.query.filter_by(name='默认单词本').first()
-        #                             if not wordbook:
-        #                                 wordbook = WordBook(name='默认单词本')
-        #                                 db.session.add(wordbook)
-        #                                 db.session.commit()
-                                    
-        #                             # 检查是否已存在
-        #                             existing_card = WordCard.query.filter_by(
-        #                                 word=detected_word, 
-        #                                 wordbook_id=wordbook.id
-        #                             ).first()
-                                    
-        #                             if not existing_card:
-        #                                 card = WordCard(
-        #                                     word=detected_word,
-        #                                     meaning=meaning,
-        #                                     example=example,
-        #                                     wordbook_id=wordbook.id
-        #                                 )
-        #                                 db.session.add(card)
-        #                                 word_cards.append({
-        #                                     'word': detected_word,
-        #                                     'meaning': meaning,
-        #                                     'example': example
-        #                                 })
-                                    
-        #                             break  # 找到匹配的单词就跳出
-        #         else:
-        #             print(f"Gemini API调用失败: {gemini_response.status_code}")
-                    
-            # except Exception as e:
-            #     print(f"处理单词 {word} 时出错: {str(e)}")
-            #     continue
-        
-        # db.session.commit()
+        session['unique_words'] = unique_words
         
         # 仍然生成CSV文件作为备份
         generate_csv(unique_words)
@@ -237,16 +181,21 @@ def init_db():
 
 @app.route('/add_wordbook', methods=['POST'])
 def add_wordbook():
-    data = request.get_json()
-    name = data.get('name', '').strip()
-    if not name:
-        return jsonify({'success': False, 'error': '单词本名称不能为空'}), 400
-    if WordBook.query.filter_by(name=name).first():
-        return jsonify({'success': False, 'error': '单词本已存在'}), 400
-    wordbook = WordBook(name=name)
-    db.session.add(wordbook)
-    db.session.commit()
-    return jsonify({'success': True, 'id': wordbook.id})
+    try:
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        if not name:
+            return jsonify({'success': False, 'error': '单词本名称不能为空'}), 400
+        if WordBook.query.filter_by(name=name).first():
+            return jsonify({'success': False, 'error': '单词本已存在'}), 400
+        wordbook = WordBook(name=name)
+        db.session.add(wordbook)
+        db.session.commit()
+        print('新建单词本成功:', wordbook.id, wordbook.name)
+        return jsonify({'success': True, 'id': wordbook.id})
+    except Exception as e:
+        print('新建单词本异常:', e)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/get_wordbooks')
 def get_wordbooks():
@@ -378,12 +327,17 @@ def generate_cards():
         if not unique_words or not wordbook_id:
             return jsonify({'success': False, 'error': '参数不完整'}), 400
 
-        # 组装prompt
+        # 组装prompt，要求用|||分隔
         prompt = """
-请严格按照如下格式输出：单词,词性. 中文释义,英文例句（句子要高级且不少于15个单词）,例句中文翻译。比如：\napple,n. 苹果（水果）,She ate an apple every morning to maintain a healthy lifestyle and boost her immune system.,她每天早上吃一个苹果以保持健康的生活方式并增强免疫系统。\nrun,vi. 跑步，奔跑；vt. 经营，管理,He runs a successful business while also running every morning to stay fit.,他经营着一家成功的企业，同时每天早上跑步保持健康。\n请为以下单词生成内容：\n""" + "\n".join(unique_words)
+请严格按照如下格式输出，每个字段用"|||"分隔：单词|||词性. 中文释义|||英文例句（句子要高级且不少于15个单词）|||例句中文翻译。
+比如：
+apple|||n. 苹果（水果）|||She ate an apple every morning to maintain a healthy lifestyle and boost her immune system.|||她每天早上吃一个苹果以保持健康的生活方式并增强免疫系统。
+run|||vi. 跑步，奔跑；vt. 经营，管理|||He runs a successful business while also running every morning to stay fit.|||他经营着一家成功的企业，同时每天早上跑步保持健康。
+请为以下单词生成内容：\n""" + "\n".join(unique_words)
 
         # 调用Gemini
-        gemini_response = requests.post('http://localhost:8000/chat', json={'text': prompt}, timeout=60)
+        gemini_api_url = app.config.get('GEMINI_API_URL') or 'http://localhost:8000/chat'
+        gemini_response = requests.post(gemini_api_url, json={'prompt': prompt}, timeout=60)
         if gemini_response.status_code != 200:
             return jsonify({'success': False, 'error': f'Gemini API调用失败: {gemini_response.status_code}'}), 500
         result = gemini_response.json()
@@ -391,26 +345,28 @@ def generate_cards():
             return jsonify({'success': False, 'error': 'Gemini无返回内容'}), 500
         reply = result['reply']
 
-        # 解析Gemini返回内容
+        
+        # 解析Gemini返回内容，按|||分割
         lines = reply.strip().split('\n')
         saved_cards = 0
         for line in lines:
-            parts = line.split(',', 4)  # 最多分割4次
-            if len(parts) == 5:
+            if not line.strip():
+                continue
+            parts = line.split('|||')
+            if len(parts) == 4:
+             
                 word = parts[0].strip()
-                property = parts[1].strip()
-                word_meaning = parts[2].strip()
-                example = parts[3].strip()
-                example_meaning = parts[4].strip()
-                # 这里假设暂时没有音频URL，传空字符串
+                word_meaning = parts[1].strip()
+                example = parts[2].strip()
+                example_meaning = parts[3].strip()
                 word_audio_url = ""
                 example_audio_url = ""
-                # 检查是否已存在
+           
                 existing_card = WordCard.query.filter_by(word=word, wordbook_id=wordbook_id).first()
                 if not existing_card:
                     card = WordCard(
                         word=word,
-                        word_meaning=f"{property} {word_meaning}",
+                        word_meaning=f"{word_meaning}",
                         word_audio_url=word_audio_url,
                         example=example,
                         example_meaning=example_meaning,

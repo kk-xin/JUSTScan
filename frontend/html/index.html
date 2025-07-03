@@ -54,14 +54,21 @@
             </section>
 
             <section class="upload-section">
-                <div class="upload-container">
-                    <h3>上传图片文件</h3>
-                    <div class="upload-area" id="uploadArea">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        <p>拖拽图片到这里，或点击选择文件</p>
-                        <input type="file" id="fileInput" accept="image/*" multiple>
+                <div class="upload-container" style="display: flex; align-items: flex-start; gap: 2em;">
+                    <div style="flex: 1;">
+                        <h3>上传图片文件</h3>
+                        <div class="upload-area" id="uploadArea">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>拖拽图片到这里，或点击选择文件</p>
+                            <input type="file" id="fileInput" accept="image/*" multiple>
+                        </div>
+                        <div class="file-list" id="fileList"></div>
                     </div>
-                    <div class="file-list" id="fileList"></div>
+                    <div class="wordbook-container">
+                        <label for="wordbookSelect" class="wordbook-label">选择单词本：</label>
+                        <select id="wordbookSelect" class="wordbook-select"></select>
+                        <button id="addWordbookBtn" class="new-wordbook-btn">新建单词本</button>
+                    </div>
                 </div>
             </section>
 

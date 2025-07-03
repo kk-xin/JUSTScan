@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
     addScrollAnimations();
     checkBackendHealth();
     renderMainCard(); // 页面加载时只渲染主卡片
+    loadWordbooks();
 });
 
 function initializeEventListeners() {
@@ -219,26 +220,6 @@ function updateFileStatus(fileName, status, message) {
         }
     });
 }
-
-// 新增：批量获取词义和例句
-// async function fetchWordDetails(words) {
-//     try {
-//         const response = await fetch(`${API_BASE_URL}/api/word_details`, {
-//             method: 'POST',
-//             headers: { 'Content-Type': 'application/json' },
-//             body: JSON.stringify({ words })
-//         });
-//         const data = await response.json();
-//         if (data.success) {
-//             wordDetails = data.details;
-//             renderWordCards();
-//         } else {
-//             showNotification('获取词义失败: ' + data.error, 'error');
-//         }
-//     } catch (e) {
-//         showNotification('获取词义失败: ' + e, 'error');
-//     }
-// }
 
 // 修改addWordCard，识别后自动批量查词义
 function addWordCard(word) {
@@ -483,66 +464,46 @@ async function askGemini() {
     }
     showNotification('正在与Gemini交流，请稍候...', 'info');
     try {
-        const resp = await fetch('http://localhost:5050/chat', {
+        // 这里假设 uniqueWordsArray 和 wordbookId 已经在你的页面逻辑中获取
+        // 你需要根据实际情况获取这两个变量
+        const uniqueWordsArray = getUniqueWords(); // 你需要实现这个函数
+        const wordbookId = getCurrentWordbookId(); // 你需要实现这个函数
+        console.log('uniqueWordsArray:', uniqueWordsArray, 'wordbookId:', wordbookId);
+        const resp = await fetch('http://localhost:5050/generate_cards', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: prompt })
+            body: JSON.stringify({ unique_words: uniqueWordsArray, wordbook_id: wordbookId })
         });
         const data = await resp.json();
-        if (!data.reply) throw new Error('Gemini无回复');
-        const lines = data.reply.split(/\r?\n/).map(l => l.trim()).filter(l => l && l.includes(','));
-        if (lines.length === 0) throw new Error('Gemini回复格式异常');
-        let csv = '单词,释义,例句\n' + lines.join('\n');
-        // 解析为对象数组
-        const wordList = lines.map(line => {
-            const arr = line.split(',');
-            return {
-                word: arr[0] || '',
-                definition: arr[1] || '',
-                example: arr.slice(2).join(',') || ''
-            };
-        });
-        // POST到后端保存到数据库
-        const saveDbResp = await fetch('http://localhost:5050/save_words', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(wordList)
-        });
-        const saveDbData = await saveDbResp.json();
-        if (!saveDbData.success) throw new Error('写入数据库失败: ' + (saveDbData.error || '未知错误'));
-        showNotification('已写入数据库words表', 'success');
-        // 兼容原有CSV保存逻辑
-        const saveResp = await fetch('http://localhost:5050/upload_full_csv', {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/csv' },
-            body: csv
-        });
-        const saveData = await saveResp.json();
-        if (!saveData.success) throw new Error('保存CSV失败');
-        showNotification('已保存words_full.csv，可直接读取生成单词卡', 'success');
-        // 自动刷新单词卡
-        await loadFullWordCards();
+        if (!data.success) throw new Error(data.error || 'Gemini无回复');
+        
+        showNotification('单词卡生成成功', 'success');
+        // 你可以在这里刷新单词卡列表或做其它后续处理
     } catch (e) {
-        showNotification('与Gemini交流失败: ' + e.message, 'error');
+        showNotification('生成单词卡失败: ' + e.message, 'error');
     }
 }
 
-function renderMainCard() {
+function renderMainCard(wordbooks = []) {
     cardsList.innerHTML = '';
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const dateStr = `${yyyy}-${mm}-${dd}`;
-    const card = document.createElement('div');
-    card.className = 'word-card word-main-card';
-    card.style.cursor = 'pointer';
-    card.innerHTML = `
-        <div style="font-size:2em;font-weight:700;margin-bottom:0.5em;">${dateStr} 单词卡</div>
-        <div style="font-size:1.1em;color:#ffd700;">点击查看今日单词卡</div>
-    `;
-    card.onclick = () => { window.location.href = 'cards.html'; };
-    cardsList.appendChild(card);
+    if (wordbooks.length === 0) {
+        cardsList.innerHTML = '<div style="color:#fff;opacity:0.7;text-align:center;margin-top:3em;">暂无单词本</div>';
+        return;
+    }
+    wordbooks.forEach(wb => {
+        const card = document.createElement('div');
+        card.className = 'word-card word-main-card';
+        card.style.cursor = 'pointer';
+        card.innerHTML = `
+            <div style="font-size:1.5em;font-weight:700;margin-bottom:0.5em;">${wb.name}</div>
+            <div style="font-size:1.1em;color:#ffd700;">点击查看该单词本的单词卡</div>
+        `;
+        // 可选：点击后切换到该单词本或跳转
+        card.onclick = () => {
+            window.location.href = `cards?wordbook_id=${wb.id}`;
+        };
+        cardsList.appendChild(card);
+    });
 }
 
 async function loadFullWordCards() {
@@ -600,4 +561,62 @@ function useOcrWordsForGemini() {
     const wordsText = ocrWords.join('\n');
     document.getElementById('promptTextarea').value = promptHeader + '\n' + wordsText;
     askGemini();
+}
+
+// 页面加载时获取单词本列表
+async function loadWordbooks() {
+    const resp = await fetch('/get_wordbooks');
+    const data = await resp.json();
+    renderWordbookSelect(data.wordbooks || []);
+    renderMainCard(data.wordbooks || []);
+}
+
+function renderWordbookSelect(wordbooks) {
+    const select = document.getElementById('wordbookSelect');
+    select.innerHTML = '';
+    if (wordbooks.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = '暂无单词本，请新建';
+        select.appendChild(option);
+    } else {
+        wordbooks.forEach(wb => {
+            const option = document.createElement('option');
+            option.value = wb.id;
+            option.textContent = wb.name;
+            select.appendChild(option);
+        });
+    }
+}
+
+// 新建单词本
+const addWordbookBtn = document.getElementById('addWordbookBtn');
+if (addWordbookBtn) {
+    addWordbookBtn.addEventListener('click', async () => {
+        const name = prompt('请输入新单词本名称：');
+        if (!name) return;
+        const resp = await fetch('/add_wordbook', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showNotification('新建单词本成功', 'success');
+            await loadWordbooks();
+            document.getElementById('wordbookSelect').value = data.id;
+        } else {
+            showNotification('新建失败: ' + (data.error || '未知错误'), 'error');
+        }
+    });
+}
+
+// 获取当前选中的单词本ID
+function getCurrentWordbookId() {
+    return document.getElementById('wordbookSelect').value;
+}
+
+function getUniqueWords() {
+    // ocrWords 已经是去重的识别结果
+    return ocrWords;
 } 
