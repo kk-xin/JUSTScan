@@ -9,6 +9,7 @@ class WordBook(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(64), unique=True, nullable=False)
     create_time = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    is_deleted = db.Column(db.Boolean, default=False)
     cards = db.relationship("WordCard", backref="wordbook", lazy=True) #backref='wordbook' 表示在 WordCard 中可以通过 wordcard.wordbook 访问所属的 WordBook。
 
     def __init__(self, name):

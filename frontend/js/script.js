@@ -415,95 +415,70 @@ function validateFileSize(file, maxSize = 100 * 1024 * 1024) { // 100MB
     return file.size <= maxSize;
 }
 
-async function generatePrompt() {
-    // 优先尝试从后端读取words.csv
-    try {
-        const response = await fetch(`${API_BASE_URL}/download`);
-        if (!response.ok) throw new Error('无法获取CSV');
-        const csvText = await response.text();
-        // 解析csv，跳过表头
-        const lines = csvText.split(/\r?\n/).map(l => l.trim()).filter(l => l);
-        let words = [];
-        if (lines.length > 1) {
-            words = lines.slice(1); // 跳过表头
-        }
-        if (words.length === 0) throw new Error('CSV中无单词');
-        const promptHeader = `请严格按照如下格式输出：单词,中文释义（释义前用词性缩写标注，如 n. vt. vi. adj. adv. prep. 等）,英文例句（例句要高级且较长，词汇丰富，句子长度不少于15个单词）。比如：\napple,n. 苹果（水果）,She ate an apple every morning to maintain a healthy lifestyle and boost her immune system.\nrun,vi. 跑步，奔跑; vt. 经营，管理,He runs a successful business while also running every morning to stay fit.\n请为以下单词生成内容：`;
-        const wordsText = words.join('\n');
-        document.getElementById('promptTextarea').value = promptHeader + '\n' + wordsText;
-        showNotification('已从CSV生成Gemini提示词', 'success');
-    } catch (e) {
-        // 回退用wordCards
-        if (wordCards.length === 0) {
-            showNotification('没有单词可生成提示词', 'warning');
-            return;
-        }
-        const promptHeader = `请严格按照如下格式输出：单词,中文释义（释义前用词性缩写标注，如 n. vt. vi. adj. adv. prep. 等）,英文例句（例句要高级且较长，词汇丰富，句子长度不少于15个单词）。比如：\napple,n. 苹果（水果）,She ate an apple every morning to maintain a healthy lifestyle and boost her immune system.\nrun,vi. 跑步，奔跑; vt. 经营，管理,He runs a successful business while also running every morning to stay fit.\n请为以下单词生成内容：`;
-        const wordsText = wordCards.join('\n');
-        document.getElementById('promptTextarea').value = promptHeader + '\n' + wordsText;
-        showNotification('已用当前单词卡生成Gemini提示词', 'info');
-    }
-}
-
-function copyPrompt() {
-    const text = document.getElementById('promptTextarea').value;
-    if (!text.trim()) {
-        showNotification('没有内容可复制', 'warning');
+// 修改 useOcrWordsForGemini 直接调用后端生成单词卡
+function useOcrWordsForGemini() {
+    if (ocrWords.length === 0) {
+        showNotification('没有识别到单词', 'warning');
         return;
     }
-    navigator.clipboard.writeText(text).then(() => {
-        showNotification('提示词已复制到剪贴板', 'success');
+    const uniqueWordsArray = ocrWords; // 已去重
+    const wordbookId = getCurrentWordbookId();
+    if (!wordbookId) {
+        showNotification('请先选择单词本', 'warning');
+        return;
+    }
+    showNotification('正在生成单词卡，请稍候...', 'info');
+    fetch(`${API_BASE_URL}/generate_cards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unique_words: uniqueWordsArray, wordbook_id: wordbookId })
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('单词卡生成成功', 'success');
+        } else {
+            throw new Error(data.error || '生成失败');
+        }
+    })
+    .catch(err => {
+        showNotification('生成单词卡失败: ' + err.message, 'error');
     });
 }
 
-async function askGemini() {
-    const prompt = document.getElementById('promptTextarea').value.trim();
-    if (!prompt) {
-        showNotification('请先生成或填写Gemini提示词', 'warning');
-        return;
-    }
-    showNotification('正在与Gemini交流，请稍候...', 'info');
-    try {
-        // 这里假设 uniqueWordsArray 和 wordbookId 已经在你的页面逻辑中获取
-        // 你需要根据实际情况获取这两个变量
-        const uniqueWordsArray = getUniqueWords(); // 你需要实现这个函数
-        const wordbookId = getCurrentWordbookId(); // 你需要实现这个函数
-        console.log('uniqueWordsArray:', uniqueWordsArray, 'wordbookId:', wordbookId);
-        const resp = await fetch('http://localhost:5050/generate_cards', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ unique_words: uniqueWordsArray, wordbook_id: wordbookId })
+function renderMainCard(wordbooks = []){
+    cardsList.innerHTML='';
+    if(wordbooks.length===0){
+        cardsList.innerHTML='<div style="color:#fff;opacity:0.7;text-align:center;margin-top:3em;">暂无单词本</div>';return;}
+    if(!manageMode){
+        wordbooks.forEach(wb=>{
+            const card=document.createElement('div');
+            card.className='word-card word-main-card';
+            card.style.cursor='pointer';
+            card.innerHTML=`<div style="font-size:1.5em;font-weight:700;margin-bottom:0.5em;">${wb.name}</div>
+            <div style="font-size:1.1em;color:#ffd700;">点击查看该单词本的单词卡</div>`;
+            card.onclick=()=>{window.location.href=`cards?wordbook_id=${wb.id}`};
+            cardsList.appendChild(card);
         });
-        const data = await resp.json();
-        if (!data.success) throw new Error(data.error || 'Gemini无回复');
-        
-        showNotification('单词卡生成成功', 'success');
-        // 你可以在这里刷新单词卡列表或做其它后续处理
-    } catch (e) {
-        showNotification('生成单词卡失败: ' + e.message, 'error');
+    }else{
+        wordbooks.forEach(wb=>{
+            const card=document.createElement('div');
+            card.className='word-card';
+            card.style.position='relative';
+            card.style.minHeight='180px';
+            card.innerHTML=`<button class="manage-del-btn" onclick="deleteWordbook(${wb.id},event)" style="position:absolute;top:-10px;right:-10px;background:#ef4444;border:none;border-radius:50%;width:22px;height:22px;color:#fff;font-weight:700;font-size:0.7em;line-height:20px;">—</button>
+                <div style="font-size:1.5em;font-weight:700;margin-bottom:0.5em;color:#fff;text-align:left;">${wb.name}</div>
+                <div style="font-size:1.1em;color:#ffd700;text-align:left;">点击查看该单词本的单词卡</div>`;
+            cardsList.appendChild(card);
+        });
+        // plus card
+        const plus=document.createElement('div');
+        plus.className='word-card';
+        plus.style.cssText='display:flex;align-items:center;justify-content:center;border:2px dashed rgba(255,255,255,0.4);cursor:pointer;color:#fff;font-size:2em;';
+        plus.innerHTML='<i class="fas fa-plus"></i>';
+        plus.onclick=()=>addWordbookBtn.click();
+        cardsList.appendChild(plus);
     }
-}
-
-function renderMainCard(wordbooks = []) {
-    cardsList.innerHTML = '';
-    if (wordbooks.length === 0) {
-        cardsList.innerHTML = '<div style="color:#fff;opacity:0.7;text-align:center;margin-top:3em;">暂无单词本</div>';
-        return;
-    }
-    wordbooks.forEach(wb => {
-        const card = document.createElement('div');
-        card.className = 'word-card word-main-card';
-        card.style.cursor = 'pointer';
-        card.innerHTML = `
-            <div style="font-size:1.5em;font-weight:700;margin-bottom:0.5em;">${wb.name}</div>
-            <div style="font-size:1.1em;color:#ffd700;">点击查看该单词本的单词卡</div>
-        `;
-        // 可选：点击后切换到该单词本或跳转
-        card.onclick = () => {
-            window.location.href = `cards?wordbook_id=${wb.id}`;
-        };
-        cardsList.appendChild(card);
-    });
 }
 
 async function loadFullWordCards() {
@@ -550,17 +525,6 @@ function renderFullWordCards(cards) {
         `;
         cardsList.appendChild(card);
     });
-}
-
-function useOcrWordsForGemini() {
-    if (ocrWords.length === 0) {
-        showNotification('没有识别到单词', 'warning');
-        return;
-    }
-    const promptHeader = `请严格按照如下格式输出：单词,中文释义（释义前用词性缩写标注，如 n. vt. vi. adj. adv. prep. 等）,英文例句（例句要高级且较长，词汇丰富，句子长度不少于15个单词）。比如：\napple,n. 苹果（水果）,She ate an apple every morning to maintain a healthy lifestyle and boost her immune system.\nrun,vi. 跑步，奔跑; vt. 经营，管理,He runs a successful business while also running every morning to stay fit.\n请为以下单词生成内容：`;
-    const wordsText = ocrWords.join('\n');
-    document.getElementById('promptTextarea').value = promptHeader + '\n' + wordsText;
-    askGemini();
 }
 
 // 页面加载时获取单词本列表
@@ -620,3 +584,84 @@ function getUniqueWords() {
     // ocrWords 已经是去重的识别结果
     return ocrWords;
 } 
+
+// (删除单词本功能已撤回)
+
+// === 回收站（单词本） ===
+async function updateWbTrashCount(){
+    try{
+        const resp = await fetch('/get_deleted_wordbooks');
+        const data = await resp.json();
+        const count = (data.wordbooks||[]).length;
+        const span = document.getElementById('wbTrashCount');
+        if(span) span.textContent = count;
+    }catch(e){console.error('trash count err',e);}
+}
+
+function attachTrashBtn(){
+    const btn=document.getElementById('wbTrashBtn');
+    if(!btn) return;
+    btn.addEventListener('click', showWbTrash);
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+    updateWbTrashCount();
+    attachTrashBtn();
+});
+
+async function showWbTrash(){
+    const resp = await fetch('/get_deleted_wordbooks');
+    const data = await resp.json();
+    const wbs = data.wordbooks||[];
+    const modal=document.createElement('div');
+    modal.className='trash-modal';
+    modal.innerHTML=`<div class="trash-modal-content" style="max-width:420px;background:rgba(0,0,0,0.7);padding:1.5em;border-radius:1em;">
+        <h3 style="color:#fff;margin-bottom:1em;">回收站</h3>
+        ${wbs.length===0?'<div style="color:#fff;opacity:.7;">回收站为空</div>':wbs.map(w=>`<div style=\"display:flex;justify-content:space-between;align-items:center;margin:0.5em 0;color:#fff;\"><span>${w.name}</span><button onclick=\"restoreWb(${w.id})\" style=\"background:#4ade80;border:none;color:#fff;padding:0.2em 0.6em;border-radius:4px;\">恢复</button></div>`).join('')}
+        <button style="margin-top:1em;background:#ef4444;border:none;color:#fff;padding:0.3em 1em;border-radius:6px;" onclick="this.closest('.trash-modal').remove()">关闭</button>
+    </div>`;
+    modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;display:flex;justify-content:center;align-items:center;z-index:1000;';
+    document.body.appendChild(modal);
+}
+
+window.restoreWb = async function(id){
+    await fetch('/restore_wordbook',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+    await loadWordbooks();
+    updateWbTrashCount();
+    showNotification('已恢复单词本','success');
+    document.querySelectorAll('.trash-modal').forEach(m=>m.remove());
+    showWbTrash();
+}
+
+// 在 loadWordbooks 结束处追加计数刷新
+const _origLoadWB = loadWordbooks;
+loadWordbooks = async function(){
+    await _origLoadWB.apply(this, arguments);
+    updateWbTrashCount();
+} 
+
+// === Manage Mode ===
+let manageMode = false;
+function attachSettingsBtn(){
+  const btn=document.getElementById('wbSettingsBtn');
+  if(!btn) return;
+  btn.addEventListener('click',()=>{
+      manageMode=!manageMode;
+      btn.style.background = manageMode? 'rgba(59,130,246,0.6)' : 'rgba(255,255,255,0.1)';
+      loadWordbooks();
+  });
+}
+
+document.addEventListener('DOMContentLoaded', attachSettingsBtn); 
+
+// deleteWordbook handler (for manage mode)
+window.deleteWordbook = async function(id,e){
+  e.stopPropagation();
+  if(!confirm('确定删除该单词本?')) return;
+  try{
+     await fetch('/soft_delete_wordbook',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+     await loadWordbooks();
+     updateWbTrashCount();
+     showNotification('已删除到回收站','success');
+  }catch(err){showNotification('删除失败','error');}
+}; 

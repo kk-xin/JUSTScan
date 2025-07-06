@@ -114,9 +114,17 @@ function renderFavorites(cards) {
             <div class="card-favorite-btn" style="position:absolute;top:1em;right:1em;">
                 <i class="fas fa-star favorite-active"></i>
             </div>
-            <div style="font-size:1.5em;font-weight:600;margin-bottom:0.5em;color:#fff;">${item.word}</div>
+            <div class="word-card-title" style="font-size:1.5em;font-weight:600;margin-bottom:0.5em;color:#fff;display:flex;align-items:center;gap:0.5rem;">
+                <span>${item.word}</span>
+                <button class="btn-speak-word" onclick="speakWord('${item.word}')" title="朗读单词" style="background:rgba(59,130,246,0.8);border:none;border-radius:50%;width:28px;height:28px;color:#fff;display:flex;align-items:center;justify-content:center;">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+            </div>
             <div style="font-size:1.1em;color:#ffd700;margin-bottom:0.5em;">${item.meaning || ''}</div>
-            <div style="font-size:1em;color:#fff;opacity:0.9;word-break:break-word;margin-bottom:0.5em;">${item.example || ''}</div>
+            <div style="font-size:1em;color:#fff;opacity:0.9;word-break:break-word;margin-bottom:0.5em;display:flex;align-items:flex-start;gap:0.5rem;">
+                <span style="flex:1;">${item.example || ''}</span>
+                ${item.example ? `<button class=\"btn-speak-sentence\" onclick=\"speakSentence('${item.example.replace(/'/g, "\\'")}')\" title=\"朗读例句\" style=\"background:rgba(59,130,246,0.8);border:none;border-radius:50%;width:28px;height:28px;color:#fff;display:flex;align-items:center;justify-content:center;\"><i class=\"fas fa-volume-up\"></i></button>` : ''}
+            </div>
             <div style="font-size:1em;color:#ffd700;opacity:0.95;margin-bottom:0.5em;">${item.example_meaning || ''}</div>
         `;
         list.appendChild(cardDiv);

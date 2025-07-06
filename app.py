@@ -197,10 +197,45 @@ def add_wordbook():
         print('新建单词本异常:', e)
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# 获取未删除的单词本
 @app.route('/get_wordbooks')
 def get_wordbooks():
-    wordbooks = WordBook.query.all()
-    return jsonify({'wordbooks': [{'id': wb.id, 'name': wb.name, 'create_time': wb.create_time.strftime('%Y-%m-%d %H:%M:%S')} for wb in wordbooks]})
+    wordbooks = WordBook.query.filter_by(is_deleted=False).all()
+    return jsonify({'wordbooks': [
+        {'id': wb.id, 'name': wb.name, 'create_time': wb.create_time.strftime('%Y-%m-%d %H:%M:%S')}
+        for wb in wordbooks]})
+
+# 软删除单词本
+@app.route('/soft_delete_wordbook', methods=['POST'])
+def soft_delete_wordbook():
+    data = request.get_json()
+    wb_id = data.get('id')
+    wb = WordBook.query.get(wb_id)
+    if not wb:
+        return jsonify({'success': False, 'error': '未找到该单词本'}), 404
+    wb.is_deleted = True
+    db.session.commit()
+    return jsonify({'success': True})
+
+# 获取回收站里的单词本
+@app.route('/get_deleted_wordbooks')
+def get_deleted_wordbooks():
+    wordbooks = WordBook.query.filter_by(is_deleted=True).all()
+    return jsonify({'wordbooks': [
+        {'id': wb.id, 'name': wb.name, 'create_time': wb.create_time.strftime('%Y-%m-%d %H:%M:%S')}
+        for wb in wordbooks]})
+
+# 恢复单词本
+@app.route('/restore_wordbook', methods=['POST'])
+def restore_wordbook():
+    data = request.get_json()
+    wb_id = data.get('id')
+    wb = WordBook.query.get(wb_id)
+    if not wb:
+        return jsonify({'success': False, 'error': '未找到该单词本'}), 404
+    wb.is_deleted = False
+    db.session.commit()
+    return jsonify({'success': True})
 
 @app.route('/add_card', methods=['POST'])
 def add_card():
@@ -211,7 +246,7 @@ def add_card():
     wordbook_id = data.get('wordbook_id')
     if not word or not meaning or not example or not wordbook_id:
         return jsonify({'success': False, 'error': '参数不完整'}), 400
-    card = WordCard(word=word, meaning=meaning, example=example, wordbook_id=wordbook_id)
+    card = WordCard(word=word, word_meaning=meaning, word_audio_url="", example=example, example_meaning="", example_audio_url="", wordbook_id=wordbook_id)
     db.session.add(card)
     db.session.commit()
     return jsonify({'success': True})

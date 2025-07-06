@@ -19,7 +19,7 @@
                 <a href="#home" class="nav-link active">首页</a>
                 <a href="#features" class="nav-link">功能</a>
                 <a href="#about" class="nav-link">关于</a>
-                <a href="cards.html" class="nav-link">管理单词卡</a>
+                <a href="#wordbooks" class="nav-link">管理单词卡</a>
             </nav>
         </header>
 
@@ -54,8 +54,8 @@
             </section>
 
             <section class="upload-section">
-                <div class="upload-container" style="display: flex; align-items: flex-start; gap: 2em;">
-                    <div style="flex: 1;">
+                <div class="upload-container" style="display: flex; align-items:flex-start; gap: 2em;">
+                    <div style="flex:1;">
                         <h3>上传图片文件</h3>
                         <div class="upload-area" id="uploadArea">
                             <i class="fas fa-cloud-upload-alt"></i>
@@ -64,30 +64,33 @@
                         </div>
                         <div class="file-list" id="fileList"></div>
                     </div>
-                    <div class="wordbook-container">
-                        <label for="wordbookSelect" class="wordbook-label">选择单词本：</label>
-                        <select id="wordbookSelect" class="wordbook-select"></select>
-                        <button id="addWordbookBtn" class="new-wordbook-btn">新建单词本</button>
+                    <div style="min-width:260px;display:flex;flex-direction:column;gap:1em;">
+                        <div class="wordbook-container">
+                            <label for="wordbookSelect" class="wordbook-label">选择单词本：</label>
+                            <select id="wordbookSelect" class="wordbook-select"></select>
+                            <button id="addWordbookBtn" class="new-wordbook-btn" style="margin-top:0.5em;">新建单词本</button>
+                        </div>
+                        <button onclick="useOcrWordsForGemini()" class="btn-process" style="margin-top:1em;">用识别结果生成单词卡</button>
                     </div>
                 </div>
             </section>
 
-            <section class="cards-section">
+            <section class="cards-section" id="wordbooks">
                 <div class="cards-container">
-                    <h3>单词卡</h3>
+                    <div style="display:flex;align-items:center;">
+                        <h3>单词卡</h3>
+                        <div style="margin-left:auto;display:flex;gap:0.8em;align-items:center;">
+                            <button id="wbSettingsBtn" class="btn-speech-control" title="管理模式">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <button id="wbTrashBtn" class="btn-trash-icon" title="回收站" style="position:relative;">
+                                <i class="fas fa-trash-alt"></i>
+                                <span id="wbTrashCount" class="trash-count">0</span>
+                            </button>
+                        </div>
+                    </div>
                     <div class="cards-list" id="cardsList">
                         <!-- 单词卡动态生成 -->
-                    </div>
-                </div>
-            </section>
-            <section class="prompt-helper-section">
-                <div class="prompt-helper" style="margin:2em 0;">
-                    <textarea id="promptTextarea" rows="10" style="width:100%;font-size:1em;"></textarea>
-                    <div style="margin-top:0.5em;display:flex;gap:1em;">
-                        <button onclick="generatePrompt()" class="btn-process">生成Gemini提示词</button>
-                        <button onclick="copyPrompt()" class="btn-process">复制到剪贴板</button>
-                        <button onclick="askGemini()" class="btn-process">与Gemini交流并生成CSV</button>
-                        <button onclick="useOcrWordsForGemini()" class="btn-process">用识别结果生成单词卡</button>
                     </div>
                 </div>
             </section>

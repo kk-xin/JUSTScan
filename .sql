@@ -22,3 +22,6 @@ CREATE TABLE word_cards (
     modify_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (wordbook_id) REFERENCES wordbooks(id)
 );
+
+ALTER TABLE wordbooks
+ADD COLUMN is_deleted TINYINT(1) DEFAULT 0;
