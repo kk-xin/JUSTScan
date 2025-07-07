@@ -239,6 +239,14 @@ function speakWord(word, lang = 'en-US') {
         showNotification('请先启用语音功能', 'warning');
         return;
     }
+    const btnEl = event?.target?.closest('.btn-speak-word');
+    if(btnEl && btnEl.classList.contains('speaking')){
+        stopSpeaking();
+        btnEl.classList.remove('speaking');
+        btnEl.innerHTML='<i class="fas fa-volume-up"></i>';
+        btnEl.title='朗读单词';
+        return;
+    }
     
     if (currentUtterance) {
         speechSynthesis.cancel(); // 停止当前朗读
@@ -274,11 +282,13 @@ function speakWord(word, lang = 'en-US') {
             button.title = '朗读单词';
         };
         
-        currentUtterance.onerror = function() {
+        currentUtterance.onerror = function(e) {
             button.classList.remove('speaking');
             button.innerHTML = '<i class="fas fa-volume-up"></i>';
             button.title = '朗读单词';
-            showNotification('语音朗读失败', 'error');
+            if(e.error!=='canceled' && e.error!=='interrupted'){
+               showNotification('语音朗读失败', 'error');
+            }
         };
     }
     
@@ -289,6 +299,14 @@ function speakWord(word, lang = 'en-US') {
 function speakSentence(sentence, lang = 'en-US') {
     if (!speechEnabled) {
         showNotification('请先启用语音功能', 'warning');
+        return;
+    }
+    const btnEl2 = event?.target?.closest('.btn-speak-sentence');
+    if(btnEl2 && btnEl2.classList.contains('speaking')){
+        stopSpeaking();
+        btnEl2.classList.remove('speaking');
+        btnEl2.innerHTML='<i class="fas fa-volume-up"></i>';
+        btnEl2.title='朗读例句';
         return;
     }
     
@@ -326,11 +344,13 @@ function speakSentence(sentence, lang = 'en-US') {
             button.title = '朗读例句';
         };
         
-        currentUtterance.onerror = function() {
+        currentUtterance.onerror = function(e) {
             button.classList.remove('speaking');
             button.innerHTML = '<i class="fas fa-volume-up"></i>';
             button.title = '朗读例句';
-            showNotification('语音朗读失败', 'error');
+            if(e.error!=='canceled' && e.error!=='interrupted'){
+               showNotification('语音朗读失败', 'error');
+            }
         };
     }
     
@@ -365,3 +385,104 @@ function toggleSpeechControl() {
         showNotification('语音功能已启用', 'success');
     }
 } 
+
+/***************** 循环朗读（收藏夹） *****************/
+let favLoopSpeaking=false;
+let favLoopPaused=false;
+let favLoopIndex=0;
+let favLoopStage='word'; // word or example
+let favCards=[];
+
+document.addEventListener('DOMContentLoaded',()=>{
+  const btn=document.getElementById('loopSpeakBtn');
+  if(!btn) return;
+  btn.addEventListener('click',async ()=>{
+    if(favLoopSpeaking){
+      if(!favLoopPaused){
+        favLoopPaused=true;
+        speechSynthesis.cancel();
+        btn.textContent='继续朗读';
+      }else{
+        favLoopPaused=false;
+        btn.textContent='暂停朗读';
+        await favContinue();
+      }
+      return;
+    }
+    if(!speechEnabled){showNotification('请先启用语音功能','warning');return;}
+    // 收集卡片
+    const list=document.getElementById('favoritesList');
+    favCards=Array.from(list.querySelectorAll('.word-card')).map(card=>{
+      const word=card.querySelector('.word-card-title span')?.innerText||'';
+      const example=card.querySelector('div[style*="opacity:0.9"] span')?.innerText||'';
+      return {word,example};
+    }).filter(c=>c.word);
+    if(!favCards.length){showNotification('没有可朗读的单词','error');return;}
+    favLoopSpeaking=true;favLoopPaused=false;favLoopIndex=0;favLoopStage='word';
+    btn.textContent='暂停朗读';
+    await favContinue();
+  });
+});
+
+async function favContinue(){
+  const btn=document.getElementById('loopSpeakBtn');
+  for(;favLoopIndex<favCards.length;){
+    if(favLoopPaused) return;
+    highlightFavCard(favLoopIndex);
+    const card=favCards[favLoopIndex];
+    if(favLoopStage==='word'){
+      await speakWordPromise(card.word);
+      if(favLoopPaused) return;
+      favLoopStage='example';
+    }
+    if(favLoopStage==='example' && card.example){
+      await speakSentencePromise(card.example);
+      if(favLoopPaused) return;
+    }
+    favLoopIndex++;favLoopStage='word';
+  }
+  favLoopSpeaking=false;favLoopPaused=false;
+  btn.textContent='循环朗读';
+}
+
+function highlightFavCard(idx){
+  const list=document.getElementById('favoritesList');
+  if(!list) return;
+  const cards=list.querySelectorAll('.word-card');
+  cards.forEach(c=>c.style.boxShadow='');
+  if(cards[idx]) cards[idx].style.boxShadow='0 0 0 4px #3b82f6';
+}
+
+function speakWordPromise(word){
+  return new Promise(res=>{
+    if(currentUtterance) speechSynthesis.cancel();
+    currentUtterance=new SpeechSynthesisUtterance(word);
+    currentUtterance.lang='en-US';
+    currentUtterance.rate=speechSettings.rate;
+    currentUtterance.pitch=speechSettings.pitch;
+    currentUtterance.volume=speechSettings.volume;
+    const voices=speechSynthesis.getVoices();
+    const v=voices.find(v=>v.lang.includes('en') && v.name.includes('Female')) || voices.find(v=>v.lang.includes('en')) || voices[0];
+    if(v) currentUtterance.voice=v;
+    currentUtterance.onend=()=>res();
+    currentUtterance.onerror=()=>res();
+    speechSynthesis.speak(currentUtterance);
+  });
+}
+function speakSentencePromise(text){
+  return new Promise(res=>{
+    if(currentUtterance) speechSynthesis.cancel();
+    currentUtterance=new SpeechSynthesisUtterance(text);
+    currentUtterance.lang='en-US';
+    currentUtterance.rate=speechSettings.rate+0.1;
+    currentUtterance.pitch=speechSettings.pitch;
+    currentUtterance.volume=speechSettings.volume;
+    const voices=speechSynthesis.getVoices();
+    const v=voices.find(v=>v.lang.includes('en') && v.name.includes('Female')) || voices.find(v=>v.lang.includes('en')) || voices[0];
+    if(v) currentUtterance.voice=v;
+    currentUtterance.onend=()=>res();
+    currentUtterance.onerror=()=>res();
+    speechSynthesis.speak(currentUtterance);
+  });
+}
+/*****************************************************/ 

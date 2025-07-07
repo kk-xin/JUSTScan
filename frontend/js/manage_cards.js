@@ -668,9 +668,17 @@ function speakWord(word, lang = 'en-US') {
         showNotification('请先启用语音功能', 'warning');
         return;
     }
-    
+    const btnEl = event?.target?.closest('.btn-speak-word');
+    // 如果当前按钮正在朗读，则点击时停止并还原图标
+    if(btnEl && btnEl.classList.contains('speaking')){
+        stopSpeaking();
+        btnEl.classList.remove('speaking');
+        btnEl.innerHTML = '<i class="fas fa-volume-up"></i>';
+        btnEl.title = '朗读单词';
+        return;
+    }
     if (currentUtterance) {
-        speechSynthesis.cancel(); // 停止当前朗读
+        speechSynthesis.cancel(); // 停止其他朗读
     }
     
     currentUtterance = new SpeechSynthesisUtterance(word);
@@ -703,11 +711,14 @@ function speakWord(word, lang = 'en-US') {
             button.title = '朗读单词';
         };
         
-        currentUtterance.onerror = function() {
+        currentUtterance.onerror = function(e) {
             button.classList.remove('speaking');
             button.innerHTML = '<i class="fas fa-volume-up"></i>';
             button.title = '朗读单词';
-            showNotification('语音朗读失败', 'error');
+            // 如果错误是用户取消/打断，不提示
+            if(e.error!=='canceled' && e.error!=='interrupted'){
+                showNotification('语音朗读失败', 'error');
+            }
         };
     }
     
@@ -720,7 +731,14 @@ function speakSentence(sentence, lang = 'en-US') {
         showNotification('请先启用语音功能', 'warning');
         return;
     }
-    
+    const btnEl = event?.target?.closest('.btn-speak-sentence');
+    if(btnEl && btnEl.classList.contains('speaking')){
+        stopSpeaking();
+        btnEl.classList.remove('speaking');
+        btnEl.innerHTML = '<i class="fas fa-volume-up"></i>';
+        btnEl.title = '朗读例句';
+        return;
+    }
     if (currentUtterance) {
         speechSynthesis.cancel(); // 停止当前朗读
     }
@@ -755,11 +773,13 @@ function speakSentence(sentence, lang = 'en-US') {
             button.title = '朗读例句';
         };
         
-        currentUtterance.onerror = function() {
+        currentUtterance.onerror = function(e) {
             button.classList.remove('speaking');
             button.innerHTML = '<i class="fas fa-volume-up"></i>';
             button.title = '朗读例句';
-            showNotification('语音朗读失败', 'error');
+            if(e.error!=='canceled' && e.error!=='interrupted'){
+                showNotification('语音朗读失败', 'error');
+            }
         };
     }
     
@@ -772,4 +792,132 @@ function stopSpeaking() {
         speechSynthesis.cancel();
         currentUtterance = null;
     }
+} 
+
+// === 循环朗读功能（支持暂停/继续，自动高亮跳转） ===
+let isLoopSpeaking = false;
+let loopSpeakPaused = false;
+let loopSpeakIndex = 0;
+let loopSpeakStage = 'word'; // 'word' 或 'example'
+let loopSpeakCards = [];
+
+const loopSpeakBtn = document.getElementById('loopSpeakBtn');
+if(loopSpeakBtn){
+    loopSpeakBtn.addEventListener('click', async ()=>{
+        if(isLoopSpeaking){
+            // 暂停/继续
+            if(!loopSpeakPaused){
+                loopSpeakPaused = true;
+                if(speechSynthesis.speaking){
+                    speechSynthesis.cancel();
+                }
+                loopSpeakBtn.textContent = '继续朗读';
+            }else{
+                loopSpeakPaused = false;
+                loopSpeakBtn.textContent = '暂停朗读';
+                await continueLoopSpeak();
+            }
+            return;
+        }
+        if(!speechEnabled){
+            showNotification('请先启用语音功能', 'warning');
+            return;
+        }
+        loopSpeakCards = allCards;
+        if(!loopSpeakCards || !loopSpeakCards.length){
+            showNotification('没有可朗读的单词', 'error');
+            return;
+        }
+        isLoopSpeaking = true;
+        loopSpeakPaused = false;
+        loopSpeakIndex = 0;
+        loopSpeakStage = 'word';
+        loopSpeakBtn.textContent = '暂停朗读';
+        for(; loopSpeakIndex<loopSpeakCards.length; ){
+            if(loopSpeakPaused) break;
+            selectWordCard(loopSpeakIndex);
+            if(loopSpeakStage==='word'){
+                await speakWordPromise(loopSpeakCards[loopSpeakIndex].word);
+                if(loopSpeakPaused) break;
+                loopSpeakStage = 'example';
+            }
+            if(loopSpeakStage==='example' && loopSpeakCards[loopSpeakIndex].example){
+                await speakSentencePromise(loopSpeakCards[loopSpeakIndex].example);
+                if(loopSpeakPaused) break;
+            }
+            loopSpeakIndex++;
+            loopSpeakStage = 'word';
+        }
+        isLoopSpeaking = false;
+        loopSpeakPaused = false;
+        loopSpeakBtn.textContent = '循环朗读';
+    });
+}
+
+async function continueLoopSpeak(){
+    for(; loopSpeakIndex<loopSpeakCards.length; ){
+        if(loopSpeakPaused) break;
+        selectWordCard(loopSpeakIndex);
+        if(loopSpeakStage==='word'){
+            await speakWordPromise(loopSpeakCards[loopSpeakIndex].word);
+            if(loopSpeakPaused) break;
+            loopSpeakStage = 'example';
+        }
+        if(loopSpeakStage==='example' && loopSpeakCards[loopSpeakIndex].example){
+            await speakSentencePromise(loopSpeakCards[loopSpeakIndex].example);
+            if(loopSpeakPaused) break;
+        }
+        loopSpeakIndex++;
+        loopSpeakStage = 'word';
+    }
+    isLoopSpeaking = false;
+    loopSpeakPaused = false;
+    loopSpeakBtn.textContent = '循环朗读';
+}
+
+function selectWordCard(idx){
+    // 高亮左侧列表并渲染详情
+    const listPanel = document.getElementById('wordList');
+    if(listPanel){
+        const lis = listPanel.querySelectorAll('li');
+        lis.forEach(e=>e.classList.remove('selected'));
+        if(lis[idx]){
+            lis[idx].classList.add('selected');
+            currentDetailIndex = idx;
+        }
+    }
+    renderCardDetail(allCards[idx]);
+}
+
+function speakWordPromise(word){
+    return new Promise((resolve)=>{
+        if(currentUtterance) speechSynthesis.cancel();
+        currentUtterance = new SpeechSynthesisUtterance(word);
+        currentUtterance.lang = 'en-US';
+        currentUtterance.rate = speechSettings.rate;
+        currentUtterance.pitch = speechSettings.pitch;
+        currentUtterance.volume = speechSettings.volume;
+        const voices = speechSynthesis.getVoices();
+        const englishVoice = voices.find(voice => voice.lang.includes('en') && voice.name.includes('Female')) || voices.find(voice => voice.lang.includes('en')) || voices[0];
+        if(englishVoice) currentUtterance.voice = englishVoice;
+        currentUtterance.onend = ()=>resolve();
+        currentUtterance.onerror = ()=>resolve();
+        speechSynthesis.speak(currentUtterance);
+    });
+}
+function speakSentencePromise(sentence){
+    return new Promise((resolve)=>{
+        if(currentUtterance) speechSynthesis.cancel();
+        currentUtterance = new SpeechSynthesisUtterance(sentence);
+        currentUtterance.lang = 'en-US';
+        currentUtterance.rate = speechSettings.rate+0.1;
+        currentUtterance.pitch = speechSettings.pitch;
+        currentUtterance.volume = speechSettings.volume;
+        const voices = speechSynthesis.getVoices();
+        const englishVoice = voices.find(voice => voice.lang.includes('en') && voice.name.includes('Female')) || voices.find(voice => voice.lang.includes('en')) || voices[0];
+        if(englishVoice) currentUtterance.voice = englishVoice;
+        currentUtterance.onend = ()=>resolve();
+        currentUtterance.onerror = ()=>resolve();
+        speechSynthesis.speak(currentUtterance);
+    });
 } 

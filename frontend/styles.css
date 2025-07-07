@@ -1351,7 +1351,7 @@ body {
 .btn-switch-left:active, .btn-switch-right:active {
     background: #2563eb;
     transform: scale(0.98);
-}
+} 
 
 .wordbook-container {
     display: flex;
